@@ -111,9 +111,22 @@ struct unwrap_and_call
 
   // forward unwrapped arguments to f
   template<class... Args>
-  auto operator()(Args&&... args) const
+  decltype(auto) operator()(Args&&... args) const
   {
     return f_(unwrap_if(std::forward<Args>(args))...);
+  }
+};
+
+
+template<class Result, class Function>
+struct call_and_convert_to
+{
+  mutable Function f_;
+
+  template<class... Args>
+  Result operator()(Args&&... args) const
+  {
+    return f_(std::forward<Args>(args)...);
   }
 };
 
@@ -124,10 +137,8 @@ struct unwrap_and_call
 template<class... Types>
 class recursive_variant : public std::variant<detail::wrap_if_incomplete_t<Types>...>
 {
-  private:
-    using super_t = std::variant<detail::wrap_if_incomplete_t<Types>...>;
-
   public:
+    using super_t = std::variant<detail::wrap_if_incomplete_t<Types>...>;
     using super_t::super_t;
 
     template<class U,
@@ -155,13 +166,57 @@ class recursive_variant : public std::variant<detail::wrap_if_incomplete_t<Types
 };
 
 
+namespace detail
+{
+
+
+template<class Variant>
+constexpr Variant&& super(Variant&& var)
+{
+  return std::forward<Variant>(var);
+}
+
+template<class... Types>
+constexpr typename recursive_variant<Types...>::super_t& super(recursive_variant<Types...>& var)
+{
+  return var;
+}
+
+template<class... Types>
+constexpr const typename recursive_variant<Types...>::super_t& super(const recursive_variant<Types...>& var)
+{
+  return var;
+}
+
+template<class... Types>
+constexpr typename recursive_variant<Types...>::super_t&& super(recursive_variant<Types...>&& var)
+{
+  return std::move(var);
+}
+
+
+} // end detail
+
+
 template<class Visitor, class Variant, class... Variants>
-constexpr auto visit(Visitor&& visitor, Variant&& var, Variants&&... vars)
+constexpr decltype(auto) visit(Visitor&& visitor, Variant&& var, Variants&&... vars)
 {
   // unwrap wrapped types before the visitor sees them
   detail::unwrap_and_call<std::decay_t<Visitor>> unwrapping_visitor{std::forward<Visitor>(visitor)};
 
-  return std::visit(std::move(unwrapping_visitor), std::forward<Variant>(var), std::forward<Variants>(vars)...);
+  // unwrap recursive_variants into std::variant before passing to std::visit
+  return std::visit(std::move(unwrapping_visitor), detail::super(std::forward<Variant>(var)), detail::super(std::forward<Variants>(vars))...);
+}
+
+
+template<class Result, class Visitor, class Variant, class... Variants>
+constexpr Result visit(Visitor&& visitor, Variant&& var, Variants&&... vars)
+{
+  // convert this visitor's result type to Result
+  detail::call_and_convert_to<Result, std::decay_t<Visitor>> converting_visitor{std::forward<Visitor>(visitor)};
+
+  // forward along to the above overload of visit
+  return ::visit(std::move(converting_visitor), std::forward<Variant>(var), std::forward<Variants>(vars)...);
 }
 
 

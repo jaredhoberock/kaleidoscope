@@ -57,6 +57,21 @@ class binary_operation
       : operator_(op), lhs_(std::move(lhs)), rhs_(std::move(rhs))
     {}
 
+    char op() const
+    {
+      return operator_;
+    }
+
+    const expression& lhs() const
+    {
+      return lhs_;
+    }
+
+    const expression& rhs() const
+    {
+      return rhs_;
+    }
+
   private:
     char operator_;
     expression lhs_, rhs_;
@@ -66,12 +81,22 @@ class binary_operation
 class call
 {
   public:
-    call(const std::string& callee, const std::vector<expression>& arguments)
-      : callee_(callee), arguments_(arguments)
+    call(const std::string& callee_name, const std::vector<expression>& arguments)
+      : callee_name_(callee_name), arguments_(arguments)
     {}
 
+    const std::string& callee_name() const
+    {
+      return callee_name_;
+    }
+
+    const std::vector<expression>& arguments() const
+    {
+      return arguments_;
+    }
+
   private:
-    std::string callee_;
+    std::string callee_name_;
     std::vector<expression> arguments_;
 };
 
@@ -83,6 +108,16 @@ class function_prototype
       : name_(name),
         parameters_(parameters)
     {}
+
+    const std::string& name() const
+    {
+      return name_;
+    }
+
+    const std::vector<std::string>& parameters() const
+    {
+      return parameters_;
+    }
 
   private:
     std::string name_;
@@ -96,6 +131,16 @@ class function
     function(const function_prototype& prototype, const expression& body)
       : prototype_(prototype), body_(body)
     {}
+
+    const function_prototype& prototype() const
+    {
+      return prototype_;
+    }
+
+    const expression& body() const
+    {
+      return body_;
+    }
 
   private:
     function_prototype prototype_;
@@ -112,6 +157,11 @@ class program
     program(const std::vector<top_level_statement>& statements)
       : statements_(statements)
     {}
+
+    const std::vector<top_level_statement>& statements() const
+    {
+      return statements_;
+    }
 
   private:
     std::vector<top_level_statement> statements_;
