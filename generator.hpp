@@ -171,6 +171,10 @@ class generator
           // validate the generated code
           verifyFunction(*result);
 
+          // clear the named values
+          // XXX maybe this map should only exist when visiting an expression
+          named_values_.clear();
+
           return *result;
         }
 
