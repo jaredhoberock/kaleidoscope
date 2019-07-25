@@ -6,6 +6,9 @@
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Verifier.h>
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/Transforms/Scalar.h>
+#include <llvm/Transforms/Scalar/GVN.h>
 #include "syntax.hpp"
 
 class generator
@@ -14,7 +17,8 @@ class generator
     generator()
       : context_(),
         builder_(context_),
-        module_("my jit", context_)
+        module_("my jit", context_),
+        function_pass_manager_(make_function_pass_manager(module_))
     {}
 
     class visitor_type
@@ -171,8 +175,11 @@ class generator
           // validate the generated code
           verifyFunction(*result);
 
+          // optimize
+          function_pass_manager_.run(*result);
+
           // clear the named values
-          // XXX maybe this map should only exist when visiting an expression
+          // XXX maybe this map should only exist when visiting a function
           named_values_.clear();
 
           return *result;
@@ -199,22 +206,25 @@ class generator
         visitor_type(llvm::LLVMContext& ctx,
                      llvm::IRBuilder<>& builder,
                      llvm::Module& module,
+                     llvm::legacy::FunctionPassManager& function_pass_manager,
                      std::map<std::string, llvm::Value*>& named_values)
           : context_(ctx),
             builder_(builder),
             module_(module),
+            function_pass_manager_(function_pass_manager),
             named_values_(named_values)
         {}
 
         llvm::LLVMContext& context_;
         llvm::IRBuilder<>& builder_;
         llvm::Module& module_;
+        llvm::legacy::FunctionPassManager& function_pass_manager_;
         std::map<std::string, llvm::Value*>& named_values_;
     };
 
     visitor_type visitor()
     {
-      return visitor_type{context_, builder_, module_, named_values_};
+      return visitor_type{context_, builder_, module_, function_pass_manager_, named_values_};
     }
 
     const llvm::Module& module() const
@@ -223,9 +233,32 @@ class generator
     }
 
   private:
+    static llvm::legacy::FunctionPassManager make_function_pass_manager(llvm::Module& module)
+    {
+      llvm::legacy::FunctionPassManager result(&module);
+
+      // simple "peephole" optimizations and bit-twiddling optimizations
+      result.add(llvm::createInstructionCombiningPass());
+
+      // reassociate expressions
+      result.add(llvm::createReassociatePass());
+
+      // eliminate common subexpressions
+      result.add(llvm::createGVNPass());
+
+      // simplify control flow graph
+      result.add(llvm::createCFGSimplificationPass());
+
+      // now initialize
+      result.doInitialization();
+
+      return result;
+    }
+
     llvm::LLVMContext context_;
     llvm::IRBuilder<> builder_;
     llvm::Module module_;
+    llvm::legacy::FunctionPassManager function_pass_manager_;
     std::map<std::string, llvm::Value*> named_values_;
 };
 
