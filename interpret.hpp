@@ -2,6 +2,7 @@
 
 #include "parser.hpp"
 #include "jit_compiler.hpp"
+#include "generator.hpp"
 #include "overloaded.hpp"
 
 void handle_statement(generator& gen, jit_compiler& compiler, const top_level_statement& statement)

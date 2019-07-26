@@ -12,6 +12,7 @@
 #include <llvm/ExecutionEngine/Orc/LambdaResolver.h>
 #include <llvm/Support/DynamicLibrary.h>
 #include <llvm/IR/Mangler.h>
+#include <llvm/ExecutionEngine/ExecutionEngine.h>
 
 
 class jit_compiler

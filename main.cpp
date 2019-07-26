@@ -1,7 +1,5 @@
-// clang -std=c++17 main.cpp lexer.cpp -lstdc++ `llvm-config --cppflags --ldflags --system-libs --libs core`
+// clang -std=c++17 main.cpp -lstdc++ `llvm-config --cppflags --ldflags --system-libs --libs core`
 #include <iostream>
-#include "parser.hpp"
-#include "generator.hpp"
 #include "interpret.hpp"
 
 int main()
@@ -11,6 +9,8 @@ int main()
 
   // XXX what's the best place for this?
   llvm::InitializeNativeTargetAsmPrinter();
+
+  // XXX what's this for, and why don't we need it?
   //InitializeNativeTargetAsmParser();
 
   interpret();
