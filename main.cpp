@@ -2,20 +2,18 @@
 #include <iostream>
 #include "parser.hpp"
 #include "generator.hpp"
+#include "interpret.hpp"
 
 int main()
 {
-  parser p;
+  // XXX what's the best place for this?
+  llvm::InitializeNativeTarget();
 
-  program prog = p.parse_program();
+  // XXX what's the best place for this?
+  llvm::InitializeNativeTargetAsmPrinter();
+  //InitializeNativeTargetAsmParser();
 
-  generator g;
-
-  // visit the program
-  g.visitor()(prog);
-
-  // print out the generated code
-  g.module().print(llvm::errs(), nullptr);
+  interpret();
 
   return 0;
 }

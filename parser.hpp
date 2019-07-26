@@ -10,12 +10,37 @@
 class parser
 {
   public:
+    parser()
+      : current_token_(get_token()) // get the first token
+    {}
+
+    // XXX this really shouldn't be exposed
+    const token& current_token() const
+    {
+      return current_token_;
+    }
+
+    // XXX this really shouldn't be exposed
+    inline token parse_token(token expected)
+    {
+      if(current_token_ != expected)
+      {
+        visit([](const auto& expected, const auto& got)
+        {
+          std::cerr << "Expected '" << expected << "', got '" << got << "'" << std::endl;
+          assert(false);
+        },
+        expected, current_token_);
+      }
+
+      current_token_ = get_token();
+      return expected;
+    }
+
     // program := { top_level_statement | ';' }*
     inline program parse_program()
     {
       std::vector<top_level_statement> statements;
-
-      current_token_ = get_token();
     
       while(current_token_ != token(char(EOF)))
       {
@@ -34,23 +59,28 @@ class parser
       return {statements};
     }
 
-  private:
-    inline token parse_token(token expected)
+    // top_level_statement := function | extern | expression
+    inline top_level_statement parse_top_level_statement()
     {
-      if(current_token_ != expected)
+      if(current_token_ == token(keyword::def))
       {
-        visit([](const auto& expected, const auto& got)
-        {
-          std::cerr << "Expected '" << expected << "', got '" << got << "'" << std::endl;
-          assert(false);
-        },
-        expected, current_token_);
+        auto result = parse_function();
+        std::cout << "parse_top_level_statement: parsed function" << std::endl;
+        return result;
+      }
+      else if(current_token_ == token(keyword::extern_))
+      {
+        auto result = parse_extern();
+        std::cout << "parse_top_level_statement: parsed extern" << std::endl;
+        return result;
       }
 
-      current_token_ = get_token();
-      return expected;
+      auto result = parse_expression();
+      std::cout << "parse_top_level_statement: parsed expression" << std::endl;
+      return result;
     }
 
+  private:
     inline std::string parse_identifier()
     {
       std::string result = std::get<std::string>(current_token_);
@@ -79,7 +109,7 @@ class parser
 
       std::vector<expression> result;
 
-      while(true)
+      while(current_token_ != token(')'))
       {
         result.emplace_back(parse_expression());
 
@@ -238,9 +268,7 @@ class parser
     inline function parse_function()
     {
       assert(current_token_ == token(keyword::def));
-
       current_token_ = get_token();
-
       return {parse_function_prototype(), parse_expression()};
     }
 
@@ -252,27 +280,6 @@ class parser
       current_token_ = get_token();
 
       return parse_function_prototype();
-    }
-
-    // top_level_statement := function | extern | expression
-    inline top_level_statement parse_top_level_statement()
-    {
-      if(current_token_ == token(keyword::def))
-      {
-        auto result = parse_function();
-        std::cout << "parsed function" << std::endl;
-        return result;
-      }
-      else if(current_token_ == token(keyword::extern_))
-      {
-        auto result = parse_extern();
-        std::cout << "parsed extern" << std::endl;
-        return result;
-      }
-
-      auto result = parse_expression();
-      std::cout << "parsed expression" << std::endl;
-      return result;
     }
 
     token current_token_;

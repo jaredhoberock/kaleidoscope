@@ -9,6 +9,7 @@
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Transforms/Scalar/GVN.h>
+#include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "syntax.hpp"
 
 class generator
@@ -17,9 +18,40 @@ class generator
     generator()
       : context_(),
         builder_(context_),
-        module_("my jit", context_),
-        function_pass_manager_(make_function_pass_manager(module_))
+        module_(make_module(context_)),
+        function_pass_manager_(make_function_pass_manager(*module_))
     {}
+
+    std::unique_ptr<llvm::Module> release_module()
+    {
+      // create a new module
+      std::unique_ptr<llvm::Module> old_module = make_module(context_);
+      std::swap(old_module, module_);
+
+      // make a function pass manager for the new module
+      function_pass_manager_ = make_function_pass_manager(*module_);
+
+      // copy function declarations from the old module into the new
+      // so that we can call functions in other modules from the new one
+      for(auto& f : old_module->functions())
+      {
+        // get the function's parameter names
+        std::vector<std::string> parameter_names;
+        for(auto& arg : f.args())
+        {
+          parameter_names.push_back(arg.getName());
+        }
+
+        // create a function prototype
+        function_prototype prototype(f.getName(), parameter_names);
+
+        // visit the prototype to declare these functions in the new module
+        visitor()(prototype);
+      }
+
+      // return the old module
+      return old_module;
+    }
 
     class visitor_type
     {
@@ -112,10 +144,14 @@ class generator
           using namespace llvm;
 
           // look up the callee
-          Function& callee = *module_.getFunction(node.callee_name());
+          Function* callee = module_.getFunction(node.callee_name());
+          if(!callee)
+          {
+            throw std::runtime_error("Could not find function");
+          }
 
           // check the call's arguments and type
-          if(callee.arg_size() != node.arguments().size())
+          if(callee->arg_size() != node.arguments().size())
           {
             throw std::runtime_error("Incorrect number of arguments");
           }
@@ -128,7 +164,7 @@ class generator
           }
 
           // create the call
-          return *builder_.CreateCall(&callee, arguments, "calltmp");
+          return *builder_.CreateCall(callee, arguments, "calltmp");
         }
 
         llvm::Function& operator()(const function& node) const
@@ -143,7 +179,7 @@ class generator
             // visit its prototype
             result = &operator()(node.prototype());
           }
-          else if(result->empty())
+          else if(!result->empty())
           {
             // the function has already been defined
             throw std::runtime_error("Function cannot be redefined");
@@ -224,41 +260,49 @@ class generator
 
     visitor_type visitor()
     {
-      return visitor_type{context_, builder_, module_, function_pass_manager_, named_values_};
+      return visitor_type{context_, builder_, *module_, *function_pass_manager_, named_values_};
     }
 
     const llvm::Module& module() const
     {
-      return module_;
+      return *module_;
     }
 
   private:
-    static llvm::legacy::FunctionPassManager make_function_pass_manager(llvm::Module& module)
+    static std::unique_ptr<llvm::Module> make_module(llvm::LLVMContext& ctx)
     {
-      llvm::legacy::FunctionPassManager result(&module);
+      std::unique_ptr<llvm::Module> result = std::make_unique<llvm::Module>("my jit", ctx);
+      result->setDataLayout(llvm::EngineBuilder().selectTarget()->createDataLayout());
+
+      return result;
+    }
+
+    static std::unique_ptr<llvm::legacy::FunctionPassManager> make_function_pass_manager(llvm::Module& module)
+    {
+      auto result = std::make_unique<llvm::legacy::FunctionPassManager>(&module);
 
       // simple "peephole" optimizations and bit-twiddling optimizations
-      result.add(llvm::createInstructionCombiningPass());
+      result->add(llvm::createInstructionCombiningPass());
 
       // reassociate expressions
-      result.add(llvm::createReassociatePass());
+      result->add(llvm::createReassociatePass());
 
       // eliminate common subexpressions
-      result.add(llvm::createGVNPass());
+      result->add(llvm::createGVNPass());
 
       // simplify control flow graph
-      result.add(llvm::createCFGSimplificationPass());
+      result->add(llvm::createCFGSimplificationPass());
 
       // now initialize
-      result.doInitialization();
+      result->doInitialization();
 
       return result;
     }
 
     llvm::LLVMContext context_;
     llvm::IRBuilder<> builder_;
-    llvm::Module module_;
-    llvm::legacy::FunctionPassManager function_pass_manager_;
+    std::unique_ptr<llvm::Module> module_;
+    std::unique_ptr<llvm::legacy::FunctionPassManager> function_pass_manager_;
     std::map<std::string, llvm::Value*> named_values_;
 };
 
