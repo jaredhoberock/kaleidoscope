@@ -65,7 +65,12 @@ class generator
 
         llvm::Value& operator()(const variable& node) const
         {
-          return *named_values_.at(node.name());
+          if(named_values_.count(node.name()) == 0)
+          {
+            throw std::runtime_error(std::string("No variable named '") + node.name() + "'");
+          }
+
+          return *named_values_[node.name()];
         }
 
         llvm::Value& operator()(const binary_operation& node) const
@@ -158,6 +163,82 @@ class generator
           phi_node->addIncoming(&then_value, then_block);
           phi_node->addIncoming(&else_value, else_block);
           return *phi_node;
+        }
+
+        llvm::Value& operator()(const for_expression& node) const
+        {
+          using namespace llvm;
+
+          // visit the begin expression first
+          Value& begin_value = visit<Value&>(*this, node.begin());
+
+          // create a basic block for the loop body,
+          // after the current function's current block
+          BasicBlock* pre_loop_block = builder_.GetInsertBlock();
+          Function* current_function = pre_loop_block->getParent();
+          BasicBlock* loop_body_block = BasicBlock::Create(context_, "loop", current_function);
+
+          // insert an explicit branch from the pre_loop_blocko the loop_body_block
+          builder_.CreateBr(loop_body_block);
+
+          // begin inserting IR into the loop body
+          builder_.SetInsertPoint(loop_body_block);
+
+          // create the loop variable, which takes its value from a phi node
+          PHINode& loop_variable = *builder_.CreatePHI(Type::getDoubleTy(context_), 2, node.loop_variable_name());
+          loop_variable.addIncoming(&begin_value, pre_loop_block);
+
+          // shadow any variable in the outer scope with the same name as the loop variable
+          Value* shadowed_variable = nullptr;
+          if(named_values_.count(node.loop_variable_name()))
+          {
+            shadowed_variable = named_values_[node.loop_variable_name()];
+          }
+
+          // map the loop variable name to its value
+          named_values_[node.loop_variable_name()] = &loop_variable;
+
+          // generate code for the loop body
+          visit<Value&>(*this, node.body());
+
+          // generate code for the loop step
+          Value& step_value = node.step()
+            ? visit<Value&>(*this, *node.step())
+            : *ConstantFP::get(context_, APFloat(1.0))
+          ;
+
+          // add the step to the loop variable to create its next value
+          Value& next_value_of_loop_variable = *builder_.CreateFAdd(&loop_variable, &step_value, "nextvar");
+
+          // generate the end value
+          Value& end_value = visit<Value&>(*this, node.end());
+
+          // convert the end value to a boolean
+          Value& end_condition = *builder_.CreateFCmpONE(&end_value, ConstantFP::get(context_, APFloat(0.0)), "loopcond");
+
+          // note the block which ends the loop
+          BasicBlock* loop_end_block = builder_.GetInsertBlock();
+
+          // hook up the loop variable node to the next iteration's value
+          loop_variable.addIncoming(&next_value_of_loop_variable, loop_end_block);
+
+          // create the block following the loop body
+          BasicBlock* post_loop_block = BasicBlock::Create(context_, "postloop", current_function);
+
+          // create the branch at the end of the loop
+          builder_.CreateCondBr(&end_condition, loop_body_block, post_loop_block);
+
+          // point the builder at the block following the loop
+          builder_.SetInsertPoint(post_loop_block);
+
+          // restore the shadowed variable
+          if(shadowed_variable)
+          {
+            named_values_[node.loop_variable_name()] = shadowed_variable;
+          }
+
+          // loop expressions always return 0.0
+          return *ConstantFP::get(context_, APFloat(0.0));
         }
 
         llvm::Function& operator()(const function_prototype& node) const

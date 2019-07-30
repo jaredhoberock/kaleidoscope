@@ -1,6 +1,18 @@
-// clang -std=c++17 main.cpp -lstdc++ `llvm-config --cppflags --ldflags --system-libs --libs core`
+// clang -std=c++17 main.cpp -lstdc++ -rdynamic `llvm-config --cppflags --ldflags --system-libs --libs core`
 #include <iostream>
 #include "interpret.hpp"
+
+extern "C" double putchard(double x)
+{
+  std::cerr << static_cast<char>(x);
+  return 0;
+}
+
+extern "C" double printd(double x)
+{
+  std::cerr << x << std::endl;
+  return 0;
+}
 
 int main()
 {

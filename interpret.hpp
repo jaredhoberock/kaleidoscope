@@ -52,7 +52,8 @@ void handle_statement(generator& gen, jit_compiler& compiler, const top_level_st
       double (*f_ptr)() = reinterpret_cast<double(*)()>(*symbol.getAddress());
 
       // evaluate the expression
-      std::cout << "Evaluated to " << f_ptr() << std::endl;
+      double value = f_ptr();
+      std::cout << "Evaluated to " << value << std::endl;
 
       // remove the module
       compiler.remove_module(module_handle);

@@ -43,13 +43,16 @@ class call;
 
 class if_expression;
 
+class for_expression;
+
 
 using expression = recursive_variant<
   number,
   variable,
   binary_operation,
   call,
-  if_expression
+  if_expression,
+  for_expression
 >;
 
 
@@ -109,6 +112,55 @@ class if_expression
     expression condition_;
     expression then_expression_;
     expression else_expression_;
+};
+
+
+class for_expression
+{
+  public:
+    for_expression(const std::string& loop_variable_name,
+                   expression begin,
+                   expression end,
+                   std::optional<expression> step,
+                   expression body)
+      : loop_variable_name_(loop_variable_name),
+        begin_(begin),
+        end_(end),
+        step_(step),
+        body_(body)
+    {}
+
+    const std::string& loop_variable_name() const
+    {
+      return loop_variable_name_;
+    }
+
+    const expression& begin() const
+    {
+      return begin_;
+    }
+
+    const expression& end() const
+    {
+      return end_;
+    }
+
+    const std::optional<expression>& step() const
+    {
+      return step_;
+    }
+
+    const expression& body() const
+    {
+      return body_;
+    }
+
+  private:
+    std::string loop_variable_name_;
+    expression begin_;
+    expression end_;
+    std::optional<expression> step_;
+    expression body_;
 };
 
 

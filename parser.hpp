@@ -155,13 +155,20 @@ class parser
       return call{identifier, parse_function_call_arguments()};
     }
 
-    // primary_expression := if_expression | identifier_expression | number | parens_expression
+    // primary_expression := if_expression | for_expression | identifier_expression | number | parens_expression
     inline expression parse_primary_expression()
     {
+      // XXX we could really use a pattern match here
+
       return visit(overloaded(
-        [this](const keyword&)
+        [this](const keyword& kw)
         {
-          return parse_if_expression();
+          if(kw == keyword::if_)
+          {
+            return parse_if_expression();
+          }
+
+          return parse_for_expression();
         },
         [this](const std::string&)
         {
@@ -302,6 +309,40 @@ class parser
       expression else_branch = parse_expression();
 
       return if_expression{condition, then_branch, else_branch};
+    }
+
+    // for := 'for' identifier '=' expression ',' expression (',' expression)? 'in' expression
+    inline expression parse_for_expression()
+    {
+      parse_token(keyword::for_);
+
+      std::string loop_variable_name = parse_identifier();
+
+      parse_token('=');
+
+      expression begin = parse_expression();
+
+      parse_token(',');
+
+      expression end = parse_expression();
+
+      std::optional<expression> step;
+      if(current_token_ == token(','))
+      {
+        parse_token(',');
+
+        step = parse_expression();
+      }
+      else
+      {
+        throw std::runtime_error("Expected 'in' after 'for'");
+      }
+
+      parse_token(keyword::in);
+
+      expression body = parse_expression();
+
+      return for_expression{loop_variable_name, begin, end, step, body};
     }
 
     token current_token_;
