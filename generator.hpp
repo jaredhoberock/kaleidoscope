@@ -117,6 +117,49 @@ class generator
           return *result;
         }
 
+        llvm::Value& operator()(const if_expression& node) const
+        {
+          using namespace llvm;
+
+          // visit the if's condition
+          Value& condition = visit<Value&>(*this, node.condition());
+
+          // convert the condition into a bool by comparing non-equal to 0.0
+          Value* bool_condition = builder_.CreateFCmpONE(&condition, ConstantFP::get(context_, APFloat(0.0)), "ifcond");
+
+          // get the current function being built
+          Function* current_function = builder_.GetInsertBlock()->getParent();
+
+          // create blocks for the then and else cases and the continuation
+          BasicBlock* then_block = BasicBlock::Create(context_, "then", current_function);
+          BasicBlock* else_block = BasicBlock::Create(context_, "else", current_function);
+          BasicBlock* continuation_block = BasicBlock::Create(context_, "ifcont", current_function);
+
+          // create a conditional branch
+          builder_.CreateCondBr(bool_condition, then_block, else_block);
+
+          // emit then value into then_block
+          builder_.SetInsertPoint(then_block);
+          Value& then_value = visit<Value&>(*this, node.then_expression());
+          // branch to the continuation
+          builder_.CreateBr(continuation_block);
+          then_block = builder_.GetInsertBlock();
+          
+          // emit else block
+          builder_.SetInsertPoint(else_block);
+          Value& else_value = visit<Value&>(*this, node.else_expression());
+          // branch to the continuation
+          builder_.CreateBr(continuation_block);
+          else_block = builder_.GetInsertBlock();
+
+          // emit merge block
+          builder_.SetInsertPoint(continuation_block);
+          PHINode* phi_node = builder_.CreatePHI(Type::getDoubleTy(context_), 2, "iftmp");
+          phi_node->addIncoming(&then_value, then_block);
+          phi_node->addIncoming(&else_value, else_block);
+          return *phi_node;
+        }
+
         llvm::Function& operator()(const function_prototype& node) const
         {
           using namespace llvm;

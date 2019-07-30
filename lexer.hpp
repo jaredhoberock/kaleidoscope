@@ -7,7 +7,10 @@
 enum class keyword
 {
   def,
+  else_,
   extern_,
+  if_,
+  then
 };
 
 inline std::ostream& operator<<(std::ostream& os, const keyword& kw)
@@ -20,9 +23,27 @@ inline std::ostream& operator<<(std::ostream& os, const keyword& kw)
       break;
     }
 
+    case keyword::else_:
+    {
+      os << "else";
+      break;
+    }
+
     case keyword::extern_:
     {
       os << "extern";
+      break;
+    }
+
+    case keyword::if_:
+    {
+      os << "if";
+      break;
+    }
+
+    case keyword::then:
+    {
+      os << "then";
       break;
     }
   }
@@ -77,9 +98,21 @@ inline token get_token()
     {
       return keyword::def;
     }
+    else if(word == "else")
+    {
+      return keyword::else_;
+    }
     else if(word == "extern")
     {
       return keyword::extern_;
+    }
+    else if(word == "if")
+    {
+      return keyword::if_;
+    }
+    else if(word == "then")
+    {
+      return keyword::then;
     }
 
     return word;

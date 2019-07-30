@@ -41,12 +41,15 @@ class binary_operation;
 
 class call;
 
+class if_expression;
+
 
 using expression = recursive_variant<
   number,
   variable,
   binary_operation,
-  call
+  call,
+  if_expression
 >;
 
 
@@ -75,6 +78,37 @@ class binary_operation
   private:
     char operator_;
     expression lhs_, rhs_;
+};
+
+
+class if_expression
+{
+  public:
+    if_expression(expression condition, expression then_expression, expression else_expression)
+      : condition_(condition),
+        then_expression_(then_expression),
+        else_expression_(else_expression)
+    {}
+
+    const expression& condition() const
+    {
+      return condition_;
+    }
+
+    const expression& then_expression() const
+    {
+      return then_expression_;
+    }
+
+    const expression& else_expression() const
+    {
+      return else_expression_;
+    }
+
+  private:
+    expression condition_;
+    expression then_expression_;
+    expression else_expression_;
 };
 
 

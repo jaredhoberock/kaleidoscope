@@ -155,10 +155,14 @@ class parser
       return call{identifier, parse_function_call_arguments()};
     }
 
-    // primary_expression := identifier_expression | number | parens_expression
+    // primary_expression := if_expression | identifier_expression | number | parens_expression
     inline expression parse_primary_expression()
     {
       return visit(overloaded(
+        [this](const keyword&)
+        {
+          return parse_if_expression();
+        },
         [this](const std::string&)
         {
           return parse_identifier_expression();
@@ -167,7 +171,7 @@ class parser
         {
           return parse_number_expression();
         },
-        [this](const auto&)
+        [this](const char&)
         {
           return parse_parens_expression();
         }),
@@ -280,6 +284,24 @@ class parser
       current_token_ = get_token();
 
       return parse_function_prototype();
+    }
+
+    // if := 'if' expression 'then' expression 'else' expression
+    inline expression parse_if_expression()
+    {
+      parse_token(keyword::if_);
+
+      expression condition = parse_expression();
+
+      parse_token(keyword::then);
+
+      expression then_branch = parse_expression();
+
+      parse_token(keyword::else_);
+
+      expression else_branch = parse_expression();
+
+      return if_expression{condition, then_branch, else_branch};
     }
 
     token current_token_;
