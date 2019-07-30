@@ -333,10 +333,6 @@ class parser
 
         step = parse_expression();
       }
-      else
-      {
-        throw std::runtime_error("Expected 'in' after 'for'");
-      }
 
       parse_token(keyword::in);
 
